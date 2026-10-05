@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poultry House Monitor</title>
+<style>
+  /* ===== EDIT THE LOOK HERE ===== */
+  :root {
+    --bg: #e6ebe2;
+    --panel: #f6f8f3;
+    --ink: #1c2822;
+    --muted: #5d6b62;
+    --line: #c5cfc0;
+    --auto: #2f6b4f;     /* AUTO mode */
+    --on: #d98e04;       /* fan forced ON */
+    --off: #a63a2d;      /* fan forced OFF */
+    --radius: 10px;
+    --font: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 16px 40px;
+    background: var(--bg); color: var(--ink); font-family: var(--font);
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  #status { font-size: .9rem; color: var(--muted); }
+  #status::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--off); margin-right: 6px; }
+  #status.live::before { background: var(--auto); }
+
+  .readings { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border-radius: var(--radius); border: 1px solid var(--line); }
+  .reading { padding: 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .reading:nth-child(2n) { border-right: 0; }
+  .reading:nth-child(n+3) { border-bottom: 0; }
+  .reading span { display: block; color: var(--muted); font-size: .9rem; }
+  .reading strong { font-size: 2.1rem; font-weight: 700; }
+  .reading small { font-size: 1rem; color: var(--muted); margin-left: 3px; }
+
+  .fan { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .fan h2 { margin: 0 0 4px; font-size: 1.1rem; }
+  #fanText { margin: 0 0 14px; color: var(--muted); }
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .modes button {
+    font: inherit; font-weight: 700; font-size: 1rem;
+    padding: 16px 8px; border-radius: var(--radius); cursor: pointer;
+    border: 2px solid var(--line); background: #fff; color: var(--ink);
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .modes button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .modes button[data-mode="AUTO"].active { background: var(--auto); border-color: var(--auto); color: #fff; }
+  .modes button[data-mode="ON"].active   { background: var(--on);   border-color: var(--on);   color: #fff; }
+  .modes button[data-mode="OFF"].active  { background: var(--off);  border-color: var(--off);  color: #fff; }
+  .hint { margin: 12px 0 0; font-size: .85rem; color: var(--muted); }
+  #updated { margin-top: 14px; font-size: .85rem; color: var(--muted); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Poultry house</h1>
+    <div id="status">Connecting…</div>
+  </header>
+
+  <section class="readings">
+    <div class="reading"><span>Temperature</span><strong id="t">--</strong><small>°C</small></div>
+    <div class="reading"><span>Humidity</span><strong id="h">--</strong><small>%</small></div>
+    <div class="reading"><span>Heat index (THI)</span><strong id="thi">--</strong></div>
+    <div class="reading"><span>Ammonia</span><strong id="nh3">--</strong></div>
+  </section>
+
+  <section class="fan">
+    <h2>Fan</h2>
+    <p id="fanText">Waiting for data…</p>
+    <div class="modes">
+      <button data-mode="ON">Fan on</button>
+      <button data-mode="OFF">Fan off</button>
+      <button data-mode="AUTO">Auto</button>
+    </div>
+    <p class="hint">Fan on and Fan off ignore the ammonia level. Auto switches the fan by ammonia.</p>
+  </section>
+
+  <div id="updated"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script>
+  // ===== EDIT THESE =====
+  const MQTT_HOST = "Orangehoney-b2d0cd2b.a02.usw2.aws.hivemq.cloud";        // from your broker's overview page
+  const MQTT_WS_PORT = 8884;                   // the broker's secure WebSocket (WSS) port
+  const MQTT_USER = "webuser";                 // separate HiveMQ credential for this page
+  const MQTT_PASS = "Soteria2023";
+  // ======================
+
+  const $ = id => document.getElementById(id);
+  const client = mqtt.connect(`wss://${MQTT_HOST}:${MQTT_WS_PORT}/mqtt`, {
+    username: MQTT_USER,
+    password: MQTT_PASS,
+    clientId: "web-" + Math.random().toString(16).slice(2, 10),
+    reconnectPeriod: 3000
+  });
+
+  let deviceOnline = false;
+  function setStatus() {
+    const s = $("status");
+    s.classList.toggle("live", client.connected && deviceOnline);
+    s.textContent = !client.connected ? "Connecting…" : deviceOnline ? "Device online" : "Device offline";
+  }
+
+  client.on("connect", () => { client.subscribe(["poultry/data", "poultry/status"]); setStatus(); });
+  client.on("close", setStatus);
+  client.on("error", e => { $("status").textContent = "Connection error"; console.error(e); });
+
+  client.on("message", (topic, payload) => {
+    const msg = payload.toString();
+    if (topic === "poultry/status") { deviceOnline = (msg === "online"); setStatus(); return; }
+
+    const d = JSON.parse(msg);
+    $("t").textContent = d.t.toFixed(1);
+    $("h").textContent = d.h.toFixed(1);
+    $("thi").textContent = d.thi.toFixed(1);
+    $("nh3").textContent = d.nh3;
+    $("fanText").textContent = `Fan is ${d.fan}. Mode: ${d.mode}.`;
+    document.querySelectorAll(".modes button").forEach(b =>
+      b.classList.toggle("active", b.dataset.mode === d.mode));
+    $("updated").textContent = "Last update " + new Date().toLocaleTimeString();
+  });
+
+  document.querySelectorAll(".modes button").forEach(b =>
+    b.addEventListener("click", () => client.publish("poultry/cmd", b.dataset.mode)));
+</script>
+</body>
+</html>
