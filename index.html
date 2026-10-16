@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Poultry House Monitor</title>
+<title>Farm Climate Monitor</title>
 <style>
   /* ===== EDIT THE LOOK HERE ===== */
   :root {
@@ -12,123 +12,463 @@
     --ink: #1c2822;
     --muted: #5d6b62;
     --line: #c5cfc0;
-    --auto: #2f6b4f;     /* AUTO mode */
-    --on: #d98e04;       /* fan forced ON */
-    --off: #a63a2d;      /* fan forced OFF */
+    --auto: #2f6b4f;     /* controlled (Auto) */
+    --on: #d98e04;       /* manual ON */
+    --off: #a63a2d;      /* uncontrolled (fan off) */
     --radius: 10px;
     --font: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 20px 16px 40px;
-    background: var(--bg); color: var(--ink); font-family: var(--font);
-  }
-  main { max-width: 640px; margin: 0 auto; }
-  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; }
-  h1 { font-size: 1.4rem; margin: 0; }
-  #status { font-size: .9rem; color: var(--muted); }
-  #status::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--off); margin-right: 6px; }
-  #status.live::before { background: var(--auto); }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); }
+  main { max-width: 780px; margin: 0 auto; padding: 18px 14px 60px; }
+  button { font: inherit; color: var(--ink); cursor: pointer; }
+  button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
-  .readings { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border-radius: var(--radius); border: 1px solid var(--line); }
-  .reading { padding: 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  /* farm type gate */
+  #gate { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px; text-align: center; }
+  #gate h1 { font-size: 1.7rem; margin: 0 0 6px; }
+  .choices { display: grid; gap: 14px; width: 100%; max-width: 420px; margin-top: 22px; }
+  .choices button { font-size: 1.3rem; font-weight: 700; padding: 28px 12px; border-radius: 14px; border: 2px solid var(--ink); background: var(--panel); }
+  .choices button:hover { background: var(--ink); color: #fff; }
+
+  header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  h1 { margin: 0; }
+  h2 { margin: 0 0 10px; font-size: 1.1rem; }
+  h3 { margin: 16px 0 0; font-size: .95rem; color: var(--muted); font-weight: 600; }
+  .muted { color: var(--muted); font-size: .85rem; }
+  #status, #gateStatus { font-size: .9rem; color: var(--muted); }
+  #status::before, #gateStatus::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--off); margin-right: 6px; }
+  #status.live::before, #gateStatus.live::before { background: var(--auto); }
+  .link { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: .85rem; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 16px; }
+  .readings { display: grid; grid-template-columns: 1fr 1fr; padding: 0; margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .reading { padding: 14px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
   .reading:nth-child(2n) { border-right: 0; }
   .reading:nth-child(n+3) { border-bottom: 0; }
   .reading span { display: block; color: var(--muted); font-size: .9rem; }
-  .reading strong { font-size: 2.1rem; font-weight: 700; }
-  .reading small { font-size: 1rem; color: var(--muted); margin-left: 3px; }
+  .reading strong { font-size: 2rem; }
+  .reading small { color: var(--muted); margin-left: 3px; }
+  .reading em { display: block; font-style: normal; font-size: .8rem; color: var(--muted); min-height: 1em; }
+  .reading.alert { background: #f4d9d4; }
+  .reading.alert em { color: var(--off); font-weight: 700; }
 
-  .fan { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
-  .fan h2 { margin: 0 0 4px; font-size: 1.1rem; }
-  #fanText { margin: 0 0 14px; color: var(--muted); }
   .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .modes button {
-    font: inherit; font-weight: 700; font-size: 1rem;
-    padding: 16px 8px; border-radius: var(--radius); cursor: pointer;
-    border: 2px solid var(--line); background: #fff; color: var(--ink);
-    transition: background .15s, color .15s, border-color .15s;
-  }
-  .modes button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .modes button { font-weight: 700; padding: 14px 6px; border-radius: var(--radius); border: 2px solid var(--line); background: #fff; }
   .modes button[data-mode="AUTO"].active { background: var(--auto); border-color: var(--auto); color: #fff; }
   .modes button[data-mode="ON"].active   { background: var(--on);   border-color: var(--on);   color: #fff; }
   .modes button[data-mode="OFF"].active  { background: var(--off);  border-color: var(--off);  color: #fff; }
-  .hint { margin: 12px 0 0; font-size: .85rem; color: var(--muted); }
-  #updated { margin-top: 14px; font-size: .85rem; color: var(--muted); text-align: right; }
+  .modes small { display: block; font-weight: 400; font-size: .75rem; }
+
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 4px 8px 4px 0; }
+  .seg button { background: #fff; border: 0; padding: 7px 12px; font-size: .85rem; border-right: 1px solid var(--line); }
+  .seg button:last-child { border-right: 0; }
+  .seg button.active { background: var(--ink); color: #fff; }
+  .chart { position: relative; height: 240px; margin-top: 6px; }
+
+  .tbl { overflow-x: auto; margin-top: 10px; max-height: 420px; overflow-y: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .82rem; white-space: nowrap; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+  th { position: sticky; top: 0; background: var(--panel); }
+  th:first-child, td:first-child { text-align: left; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .warn { background: #fbe9c8; border-radius: 8px; padding: 8px 10px; font-size: .85rem; margin-top: 10px; }
 </style>
 </head>
 <body>
-<main>
+
+<!-- FIRST SCREEN: ask the farm type before showing anything else -->
+<div id="gate">
+  <h1>What are you monitoring?</h1>
+  <p class="muted">Choose the farm type. The calculations and fan rules change with it.</p>
+  <div class="choices">
+    <button data-farm="POULTRY">🐔 Poultry farm</button>
+    <button data-farm="CATTLE">🐄 Cattle farm</button>
+  </div>
+  <p id="gateStatus">Connecting…</p>
+</div>
+
+<main id="app" hidden>
   <header>
-    <h1>Poultry house</h1>
-    <div id="status">Connecting…</div>
+    <h1 id="title">Poultry house</h1>
+    <div><span id="status">Connecting…</span> <button class="link" id="change">Change farm type</button></div>
   </header>
 
   <section class="readings">
-    <div class="reading"><span>Temperature</span><strong id="t">--</strong><small>°C</small></div>
-    <div class="reading"><span>Humidity</span><strong id="h">--</strong><small>%</small></div>
-    <div class="reading"><span>Heat index (THI)</span><strong id="thi">--</strong></div>
-    <div class="reading"><span>Ammonia</span><strong id="nh3">--</strong></div>
+    <div class="reading"><span>Temperature</span><strong id="vT">--</strong><small>°C</small><em></em></div>
+    <div class="reading"><span>Humidity</span><strong id="vH">--</strong><small>%</small><em id="twb"></em></div>
+    <div class="reading" id="thiCard"><span id="thiLabel">THI</span><strong id="vThi">--</strong><em id="thiNote"></em></div>
+    <div class="reading"><span>Ammonia index</span><strong id="vN">--</strong><em></em></div>
   </section>
+  <div class="warn" id="logWarn" hidden>Device clock not synced yet, so 10-minute logging is paused. It starts once the ESP32 gets internet time.</div>
 
-  <section class="fan">
+  <section class="card">
     <h2>Fan</h2>
-    <p id="fanText">Waiting for data…</p>
+    <p id="fanText" class="muted">Waiting for data…</p>
     <div class="modes">
-      <button data-mode="ON">Fan on</button>
-      <button data-mode="OFF">Fan off</button>
-      <button data-mode="AUTO">Auto</button>
+      <button data-mode="ON">Fan on<small>manual</small></button>
+      <button data-mode="OFF">Fan off<small>uncontrolled run</small></button>
+      <button data-mode="AUTO">Auto<small>controlled run</small></button>
     </div>
-    <p class="hint">Fan on and Fan off ignore the ammonia level. Auto switches the fan by ammonia.</p>
+    <p class="muted" id="rule"></p>
   </section>
 
-  <div id="updated"></div>
+  <section class="card">
+    <h2>Graphs</h2>
+    <div>
+      <div class="seg" id="viewSeg">
+        <button data-view="raw" class="active">10 min</button>
+        <button data-view="hour">Hourly</button>
+        <button data-view="day">Daily</button>
+      </div>
+      <div class="seg" id="rangeSeg">
+        <button data-range="86400" class="active">24 h</button>
+        <button data-range="604800">7 days</button>
+        <button data-range="0">All</button>
+      </div>
+    </div>
+    <p class="muted" id="viewNote"></p>
+    <h3 id="h3scatter">THI against temperature</h3><div class="chart"><canvas id="cScatter"></canvas></div>
+    <h3>Temperature against time</h3><div class="chart"><canvas id="cT"></canvas></div>
+    <h3>Relative humidity against time</h3><div class="chart"><canvas id="cH"></canvas></div>
+    <h3 id="h3thi">THI against time</h3><div class="chart"><canvas id="cThi"></canvas></div>
+    <h3>Ammonia index against time</h3><div class="chart"><canvas id="cN"></canvas></div>
+  </section>
+
+  <section class="card">
+    <h2>Data logs</h2>
+    <div class="seg" id="tabSeg">
+      <button data-tab="log" class="active">10-min log</button>
+      <button data-tab="hour">Hourly</button>
+      <button data-tab="day">Daily</button>
+      <button data-tab="week">Weekly</button>
+      <button data-tab="period">Morning / Afternoon / Evening</button>
+    </div>
+    <p class="muted" id="formula"></p>
+    <div class="tbl" id="tableBox"></div>
+    <div class="actions">
+      <button class="link" id="csv">Download CSV</button>
+      <button class="link" id="sync">Sync from device</button>
+      <button class="link" id="clear">Clear log</button>
+    </div>
+    <p class="muted" id="count"></p>
+  </section>
+  <p class="muted" id="updated" style="text-align:right"></p>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
-<script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+
+<script id="config">
   // ===== EDIT THESE =====
-  const MQTT_HOST = "orangehoney-b2d0cd2b.a02.usw2.aws.hivemq.cloud";        // from your broker's overview page
-  const MQTT_WS_PORT = 8884;                   // the broker's secure WebSocket (WSS) port
-  const MQTT_USER = "webuser";                 // separate HiveMQ credential for this page
+  const MQTT_HOST = "orangehoney-b2d0cd2b.a02.usw2.aws.hivemq.cloud";
+  const MQTT_WS_PORT = 8884;
+  const MQTT_USER = "webuser";
   const MQTT_PASS = "Soteria2023";
-  // ======================
+  // Shown under the fan buttons. Keep in sync with the numbers at the top of the .ino
+  const RULES = {
+    POULTRY: "Auto: fan on at 35 °C or above (off at 33 °C), or when the ammonia index reaches 150 (off at 80).",
+    CATTLE:  "Auto: fan on when THI reaches 76 (off at 74), or when the ammonia index reaches 150 (off at 80)."
+  };
+</script>
 
-  const $ = id => document.getElementById(id);
-  const client = mqtt.connect(`wss://${MQTT_HOST}:${MQTT_WS_PORT}/mqtt`, {
-    username: MQTT_USER,
-    password: MQTT_PASS,
-    clientId: "web-" + Math.random().toString(16).slice(2, 10),
-    reconnectPeriod: 3000
-  });
+<script id="logic">
+  // ===== Pure calculation code (no page access) =====
+  const TZ_OFFSET_H = 1;                 // Nigeria (WAT, UTC+1). Change if the farm is in another time zone.
+  const TZ = TZ_OFFSET_H * 3600;
+  const PERIODS = ["morning", "afternoon", "evening"];
+  // Poultry THI = a*Tdb + b*Twb  (coefficients from the project notes; please re-check them)
+  const COEF = {
+    hourly:    [0.601, 0.412],
+    daily:     [0.632, 0.378],
+    morning:   [0.703, 0.301],   // 06:00-11:59
+    afternoon: [0.625, 0.383],   // 12:00-17:59
+    evening:   [0.612, 0.399]    // 18:00-05:59
+  };
 
-  let deviceOnline = false;
-  function setStatus() {
-    const s = $("status");
-    s.classList.toggle("live", client.connected && deviceOnline);
-    s.textContent = !client.connected ? "Connecting…" : deviceOnline ? "Device online" : "Device offline";
+  // Wet-bulb temperature (Stull 2011) from dry-bulb C and RH %
+  function wetBulb(T, RH) {
+    RH = Math.min(99, Math.max(5, RH));
+    return T * Math.atan(0.151977 * Math.sqrt(RH + 8.313659)) + Math.atan(T + RH) - Math.atan(RH - 1.676331)
+         + 0.00391838 * Math.pow(RH, 1.5) * Math.atan(0.023101 * RH) - 4.686035;
+  }
+  function thiCattle(T, RH) { return (1.8 * T + 32) - ((0.55 - 0.0055 * RH) * (1.8 * T - 26)); }
+  function thiPoultry(Tdb, Twb, kind) { const c = COEF[kind]; return c[0] * Tdb + c[1] * Twb; }
+  function thiOf(farm, t, h, tw, kind) { return farm === "CATTLE" ? thiCattle(t, h) : thiPoultry(t, tw, kind); }
+
+  // A log row from the device: [epochStart, tempC, rh, ammonia, fan(0/1), mode(0 auto,1 on,2 off)]
+  function mkRow(a) { return { ts: a[0], t: a[1], h: a[2], n: a[3], f: a[4] ? 1 : 0, m: (a[5] | 0), tw: wetBulb(a[1], a[2]) }; }
+
+  function keyOf(view, ts) {
+    const l = ts + TZ, d = Math.floor(l / 86400);
+    switch (view) {
+      case "raw":  return ts;
+      case "hour": return Math.floor(l / 3600);
+      case "day":  return d;
+      case "week": return Math.floor((d + 3) / 7);            // weeks start on Monday
+      case "period": {
+        const h = Math.floor((l - d * 86400) / 3600);
+        return h >= 18 ? d * 3 + 2 : h >= 12 ? d * 3 + 1 : h >= 6 ? d * 3 : (d - 1) * 3 + 2;   // 00:00-05:59 belongs to the previous evening
+      }
+    }
+  }
+  function startOf(view, key) {
+    switch (view) {
+      case "raw":  return key;
+      case "hour": return key * 3600 - TZ;
+      case "day":  return key * 86400 - TZ;
+      case "week": return (key * 7 - 3) * 86400 - TZ;
+      case "period": { const d = Math.floor(key / 3), p = key - d * 3; return d * 86400 + [6, 12, 18][p] * 3600 - TZ; }
+    }
   }
 
-  client.on("connect", () => { client.subscribe(["poultry/data", "poultry/status"]); setStatus(); });
+  // Group rows into bins and compute mean Tdb, RH, Twb, ammonia and the THI for the bin
+  function aggregate(rows, view, farm) {
+    const g = new Map();
+    for (const r of rows) {
+      const k = keyOf(view, r.ts);
+      let a = g.get(k);
+      if (!a) { a = { key: k, n: 0, t: 0, h: 0, tw: 0, nh3: 0, fan: 0, modes: [0, 0, 0] }; g.set(k, a); }
+      a.n++; a.t += r.t; a.h += r.h; a.tw += r.tw; a.nh3 += r.n; a.fan += r.f; a.modes[r.m] = (a.modes[r.m] || 0) + 1;
+    }
+    const out = [];
+    for (const a of g.values()) {
+      const t = a.t / a.n, h = a.h / a.n, tw = a.tw / a.n;
+      let p = null, kind = (view === "day" || view === "week") ? "daily" : "hourly";
+      if (view === "period") { p = a.key - Math.floor(a.key / 3) * 3; kind = PERIODS[p]; }
+      out.push({
+        key: a.key, start: startOf(view, a.key), period: p === null ? null : PERIODS[p], kind,
+        n: a.n, t, h, tw, nh3: a.nh3 / a.n, fanPct: 100 * a.fan / a.n,
+        mode: a.modes.indexOf(Math.max(...a.modes)), mixed: a.modes.filter(x => x > 0).length > 1,
+        thi: thiOf(farm, t, h, tw, kind)
+      });
+    }
+    out.sort((x, y) => x.start - y.start);
+    return out;
+  }
+</script>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const MODE_META = [
+    { name: "Controlled (Auto)",       color: "#2f6b4f" },
+    { name: "Manual ON",               color: "#d98e04" },
+    { name: "Uncontrolled (fan off)",  color: "#a63a2d" }
+  ];
+  let farm = null, live = null, view = "raw", range = 86400, tab = "log";
+  let lastBins = [], lastAnnounce = 0, deviceOnline = false;
+
+  /* ---------- stored log (merged from the device + cached in this browser) ---------- */
+  const store = new Map();
+  const LS_KEY = "pm_log_v1";
+  try { JSON.parse(localStorage.getItem(LS_KEY) || "[]").forEach(a => store.set(a[0], mkRow(a))); } catch (e) {}
+  function saveStore() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify([...store.values()].map(r => [r.ts, r.t, r.h, r.n, r.f, r.m]))); } catch (e) {}
+  }
+  const allRows = () => [...store.values()].sort((a, b) => a.ts - b.ts);
+
+  /* ---------- formatting ---------- */
+  const iso = ts => new Date((ts + TZ) * 1000).toISOString();
+  const fmt = ts => iso(ts).slice(0, 10) + " " + iso(ts).slice(11, 16);
+  const fmtShort = ts => iso(ts).slice(5, 10) + " " + iso(ts).slice(11, 16);
+  const runName = m => MODE_META[m].name;
+  const f1 = v => v.toFixed(1);
+
+  /* ---------- MQTT ---------- */
+  const client = mqtt.connect(`wss://${MQTT_HOST}:${MQTT_WS_PORT}/mqtt`, {
+    username: MQTT_USER, password: MQTT_PASS,
+    clientId: "web-" + Math.random().toString(16).slice(2, 10), reconnectPeriod: 3000
+  });
+  function setStatus() {
+    const txt = !client.connected ? "Connecting…" : deviceOnline ? "Device online" : "Device offline";
+    ["status", "gateStatus"].forEach(id => { $(id).textContent = txt; $(id).classList.toggle("live", client.connected && deviceOnline); });
+  }
+  const send = m => { if (client.connected) client.publish("poultry/cmd", m); };
+  function sendType() { if (!farm) return; lastAnnounce = Date.now(); send("TYPE:" + farm); }
+  function announce() { sendType(); send("SYNC"); }
+
+  client.on("connect", () => { client.subscribe(["poultry/data", "poultry/status", "poultry/log"]); setStatus(); announce(); });
   client.on("close", setStatus);
   client.on("error", e => { $("status").textContent = "Connection error"; console.error(e); });
-
   client.on("message", (topic, payload) => {
-    const msg = payload.toString();
-    if (topic === "poultry/status") { deviceOnline = (msg === "online"); setStatus(); return; }
-
-    const d = JSON.parse(msg);
-    $("t").textContent = d.t.toFixed(1);
-    $("h").textContent = d.h.toFixed(1);
-    $("thi").textContent = d.thi.toFixed(1);
-    $("nh3").textContent = d.nh3;
-    $("fanText").textContent = `Fan is ${d.fan}. Mode: ${d.mode}.`;
-    document.querySelectorAll(".modes button").forEach(b =>
-      b.classList.toggle("active", b.dataset.mode === d.mode));
-    $("updated").textContent = "Last update " + new Date().toLocaleTimeString();
+    const txt = payload.toString();
+    if (topic === "poultry/status") { deviceOnline = txt === "online"; setStatus(); return; }
+    let m; try { m = JSON.parse(txt); } catch (e) { return; }
+    if (topic === "poultry/data") onData(m); else if (topic === "poultry/log") onLog(m);
   });
 
-  document.querySelectorAll(".modes button").forEach(b =>
-    b.addEventListener("click", () => client.publish("poultry/cmd", b.dataset.mode)));
+  function onData(d) {
+    live = d;
+    if (farm && d.type !== farm && Date.now() - lastAnnounce > 8000) sendType();   // device restarted: tell it the farm type again
+    if (farm) paintLive();
+  }
+  let refreshTimer = null;
+  function onLog(m) {
+    (m.r || []).forEach(a => { if (a.length >= 6) store.set(a[0], mkRow(a)); });
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => { saveStore(); refreshAll(); }, 300);
+  }
+
+  /* ---------- live panel ---------- */
+  function paintLive() {
+    const d = live; if (!d) return;
+    const tw = wetBulb(d.t, d.h), v = thiOf(farm, d.t, d.h, tw, "hourly");
+    $("vT").textContent = f1(d.t); $("vH").textContent = f1(d.h); $("vThi").textContent = f1(v); $("vN").textContent = d.nh3;
+    $("twb").textContent = farm === "POULTRY" ? "Wet-bulb " + f1(tw) + " °C" : "";
+    const alert = farm === "CATTLE" && v >= 76;
+    $("thiCard").classList.toggle("alert", alert);
+    $("thiNote").textContent = farm === "CATTLE" ? (alert ? "Intervene (76 or above)" : "Below the 76 limit") : "Hourly formula";
+    $("fanText").textContent = `Fan is ${d.fan}. Mode: ${d.mode === "AUTO" ? "Auto (controlled)" : d.mode === "OFF" ? "Off (uncontrolled)" : "On (manual)"}.`;
+    document.querySelectorAll(".modes button").forEach(b => b.classList.toggle("active", b.dataset.mode === d.mode));
+    $("logWarn").hidden = !!d.log;
+    $("updated").textContent = "Last update " + new Date().toLocaleTimeString();
+    if (charts.sc) { charts.sc.data.datasets = scatterSets(lastBins); charts.sc.update(); }
+  }
+
+  /* ---------- charts ---------- */
+  const charts = {};
+  function mk(id, type, yTitle, xTitle, isTime) {
+    return new Chart($(id), { type, data: { datasets: [] }, options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      scales: {
+        x: { type: "linear", title: { display: true, text: xTitle }, ticks: { maxTicksLimit: 6, callback: v => isTime ? fmtShort(v) : v } },
+        y: { title: { display: true, text: yTitle } }
+      },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } },
+                 tooltip: { callbacks: { title: it => isTime ? fmt(it[0].parsed.x) : "" } } }
+    } });
+  }
+  function ensureCharts() {
+    if (charts.t || typeof Chart === "undefined") return;
+    charts.sc  = mk("cScatter", "scatter", "THI", "Temperature (°C)", false);
+    charts.t   = mk("cT", "line", "Temperature (°C)", "Time", true);
+    charts.h   = mk("cH", "line", "Relative humidity (%)", "Time", true);
+    charts.thi = mk("cThi", "line", "THI", "Time", true);
+    charts.n   = mk("cN", "line", "Ammonia index (raw)", "Time", true);
+  }
+  function seriesByMode(bins, fn) {
+    return MODE_META.map((m, i) => ({
+      label: m.name, borderColor: m.color, backgroundColor: m.color, pointRadius: 2, borderWidth: 2, spanGaps: false,
+      data: bins.map(b => ({ x: b.start, y: b.mode === i ? fn(b) : null }))
+    }));
+  }
+  function scatterSets(bins) {
+    const sets = MODE_META.map((m, i) => ({
+      label: m.name, borderColor: m.color, backgroundColor: m.color, pointRadius: 3, showLine: false,
+      data: bins.filter(b => b.mode === i).map(b => ({ x: b.t, y: b.thi }))
+    }));
+    if (live) {
+      const tw = wetBulb(live.t, live.h);
+      sets.push({ label: "Now", borderColor: "#000", backgroundColor: "#000", pointStyle: "triangle", pointRadius: 8, showLine: false,
+                  data: [{ x: live.t, y: thiOf(farm, live.t, live.h, tw, "hourly") }] });
+    }
+    if (farm === "CATTLE" && bins.length) {
+      const xs = bins.map(b => b.t), lo = Math.min(...xs) - 1, hi = Math.max(...xs) + 1;
+      sets.push({ label: "Intervene at 76", borderColor: "#444", borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, showLine: true,
+                  data: [{ x: lo, y: 76 }, { x: hi, y: 76 }] });
+    }
+    return sets;
+  }
+  function refreshCharts(bins) {
+    ensureCharts(); if (!charts.t) return;
+    const set = (c, fn) => { c.data.datasets = seriesByMode(bins, fn); c.update(); };
+    set(charts.t, b => b.t); set(charts.h, b => b.h); set(charts.thi, b => b.thi); set(charts.n, b => b.nh3);
+    charts.sc.data.datasets = scatterSets(bins); charts.sc.update();
+  }
+
+  /* ---------- tables ---------- */
+  const FORMULA = {
+    hourly: "Hourly THI = 0.601·Tdb + 0.412·Twb", daily: "Daily THI = 0.632·Tdb + 0.378·Twb",
+    morning: "Morning THI (06:00–11:59) = 0.703·Tdb + 0.301·Twb", afternoon: "Afternoon THI (12:00–17:59) = 0.625·Tdb + 0.383·Twb",
+    evening: "Evening THI (18:00–05:59) = 0.612·Tdb + 0.399·Twb"
+  };
+  const CATTLE_FORMULA = "Cattle THI = (1.8·T + 32) − (0.55 − 0.0055·RH)·(1.8·T − 26). Intervene at 76 or above.";
+  function formulaText() {
+    if (farm === "CATTLE") return CATTLE_FORMULA;
+    if (tab === "period") return [FORMULA.morning, FORMULA.afternoon, FORMULA.evening].join("  |  ");
+    if (tab === "day") return FORMULA.daily;
+    if (tab === "week") return FORMULA.daily + " (applied to weekly averages; the notes have no separate weekly formula)";
+    return FORMULA.hourly + ". Twb is worked out from Tdb and RH.";
+  }
+  const BIN_HEAD = ["Period", "Records", "Temp °C", "RH %", "Wet-bulb °C", "THI", "Ammonia", "Fan on %", "Run"];
+  function binLabel(b) {
+    if (tab === "hour") return fmt(b.start);
+    if (tab === "day") return fmt(b.start).slice(0, 10);
+    if (tab === "week") return "Week of " + fmt(b.start).slice(0, 10);
+    return fmt(b.start).slice(0, 10) + " " + b.period;
+  }
+  function tableModel() {
+    const rows = allRows();
+    if (tab === "log") {
+      return { head: ["Time", "Temp °C", "RH %", "Wet-bulb °C", "THI", "Ammonia", "Fan", "Run"],
+        body: rows.slice().reverse().map(r => [fmt(r.ts), f1(r.t), f1(r.h), f1(r.tw), f1(thiOf(farm, r.t, r.h, r.tw, "hourly")), r.n, r.f ? "ON" : "OFF", runName(r.m)]) };
+    }
+    const bins = aggregate(rows, tab, farm).reverse();
+    return { head: BIN_HEAD, body: bins.map(b => [binLabel(b), b.n, f1(b.t), f1(b.h), f1(b.tw), f1(b.thi), Math.round(b.nh3), Math.round(b.fanPct), b.mixed ? "Mixed" : runName(b.mode)]) };
+  }
+  function renderTable() {
+    const m = tableModel(), shown = m.body.slice(0, 200);
+    $("formula").textContent = formulaText();
+    $("tableBox").innerHTML = "<table><thead><tr>" + m.head.map(h => `<th>${h}</th>`).join("") + "</tr></thead><tbody>" +
+      (shown.length ? shown.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("") : `<tr><td colspan="${m.head.length}">No records yet. A record is saved every 10 minutes once the device has internet time.</td></tr>`) +
+      "</tbody></table>";
+  }
+  function downloadCsv() {
+    const m = tableModel();
+    const csv = [m.head.join(","), ...m.body.map(r => r.join(","))].join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `${farm.toLowerCase()}_${tab}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  /* ---------- refresh everything ---------- */
+  function refreshAll() {
+    if (!farm) return;
+    const rows = allRows();
+    const ref = rows.length ? rows[rows.length - 1].ts : 0;
+    const sel = range ? rows.filter(r => r.ts >= ref - range) : rows;
+    lastBins = aggregate(sel, view, farm);
+    const kind = farm === "CATTLE" ? "Cattle THI" : view === "day" ? "Poultry THI (daily formula)" : "Poultry THI (hourly formula)";
+    $("viewNote").textContent = view === "raw" ? "Each point is one 10-minute average." : view === "hour" ? "Each point is one hour (average of its 10-minute records)." : "Each point is one day (average of its 10-minute records).";
+    $("h3thi").textContent = kind + " against time";
+    $("h3scatter").textContent = kind + " against temperature";
+    if (charts.thi) { charts.thi.options.scales.y.title.text = kind; charts.sc.options.scales.y.title.text = kind; }
+    $("count").textContent = `${rows.length} records stored. Records marked Controlled were taken in Auto mode, Uncontrolled with the fan off.`;
+    refreshCharts(lastBins);
+    renderTable();
+  }
+
+  /* ---------- farm type + controls ---------- */
+  function setFarm(f) {
+    farm = f; $("gate").hidden = true; $("app").hidden = false;
+    $("title").textContent = f === "CATTLE" ? "Cattle barn" : "Poultry house";
+    $("thiLabel").textContent = f === "CATTLE" ? "Cattle THI" : "Poultry THI";
+    $("rule").textContent = RULES[f];
+    announce(); paintLive(); refreshAll();
+  }
+  document.querySelectorAll(".choices button").forEach(b => b.addEventListener("click", () => setFarm(b.dataset.farm)));
+  $("change").addEventListener("click", () => { farm = null; $("app").hidden = true; $("gate").hidden = false; });
+  document.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", () => send(b.dataset.mode)));
+
+  function seg(id, attr, apply) {
+    document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => {
+      document.querySelectorAll(`#${id} button`).forEach(x => x.classList.toggle("active", x === b));
+      apply(b.dataset[attr]); refreshAll();
+    }));
+  }
+  seg("viewSeg", "view", v => view = v);
+  seg("rangeSeg", "range", v => range = +v);
+  seg("tabSeg", "tab", v => tab = v);
+
+  $("csv").addEventListener("click", downloadCsv);
+  $("sync").addEventListener("click", () => send("SYNC"));
+  $("clear").addEventListener("click", () => {
+    if (confirm("Delete ALL stored log records on the device and in this browser? This cannot be undone.")) {
+      send("CLEARLOG"); store.clear(); saveStore(); refreshAll();
+    }
+  });
 </script>
 </body>
 </html>
